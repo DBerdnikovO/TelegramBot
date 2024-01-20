@@ -1,4 +1,4 @@
-package ru.berdnikov.telegrambot.services.personServices;
+package ru.berdnikov.telegrambot.services.personService;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,20 +10,20 @@ import ru.berdnikov.telegrambot.entity.Person;
 import ru.berdnikov.telegrambot.repositories.PeopleRepository;
 
 @Service
-public class RegistrationService {
+@Transactional
+public class PersonRegistrationService {
 
     private final PeopleRepository peopleRepository;
     private final ModelMapper modelMapper;
     private final PasswordEncoder passwordEncoder;
 
     @Autowired
-    public RegistrationService(PeopleRepository peopleRepository, ModelMapper modelMapper, PasswordEncoder passwordEncoder) {
+    public PersonRegistrationService(PeopleRepository peopleRepository, ModelMapper modelMapper, PasswordEncoder passwordEncoder) {
         this.modelMapper = modelMapper;
         this.passwordEncoder = passwordEncoder;
         this.peopleRepository = peopleRepository;
     }
 
-    @Transactional
     public String register(PersonDTO personDTO){
         Person person = convertToPerson(personDTO);
         person.setPassword(passwordEncoder.encode(person.getPassword()));

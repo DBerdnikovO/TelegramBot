@@ -1,20 +1,20 @@
 package ru.berdnikov.telegrambot.dto;
 
 
-public class ResponseDTO {
+public class ItemDTO {
     private String title;
     private String price;
     private String image_url;
     private String link;
 
-    public ResponseDTO(String title, String price, String image_url, String link) {
+    public ItemDTO(String title, String price, String image_url, String link) {
         this.title = title;
         this.price = price;
         this.image_url = image_url;
         this.link = link;
     }
 
-    public ResponseDTO() {
+    public ItemDTO() {
     }
 
     public String getTitle() {
@@ -51,7 +51,7 @@ public class ResponseDTO {
 
     @Override
     public String toString() {
-        return "ResponseDTO{" +
+        return "ItemDTO{" +
                 "title='" + title + '\'' +
                 ", price='" + price + '\'' +
                 ", image_url='" + image_url + '\'' +

@@ -10,7 +10,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-import ru.berdnikov.telegrambot.services.botServices.PersonDetailsService;
+import ru.berdnikov.telegrambot.services.personService.PersonDetailsService;
 
 import java.util.Collections;
 
@@ -26,7 +26,6 @@ public class AuthProviderImpl implements AuthenticationProvider {
         this.passwordEncoder = passwordEncoder;
     }
 
-    //Input login and password, exists principal
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
         String username = authentication.getName();

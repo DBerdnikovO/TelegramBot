@@ -1,17 +1,14 @@
-package ru.berdnikov.telegrambot.services.itemServices;
+package ru.berdnikov.telegrambot.services.itemService;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.berdnikov.telegrambot.dto.ResponseDTO;
+import ru.berdnikov.telegrambot.dto.ItemDTO;
 import ru.berdnikov.telegrambot.entity.Item;
 import ru.berdnikov.telegrambot.entity.Person;
 import ru.berdnikov.telegrambot.repositories.ItemRepository;
-import ru.berdnikov.telegrambot.repositories.PeopleRepository;
 
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,24 +27,25 @@ public class ItemService {
         return itemRepository.findAll();
     }
 
-    public void addItem(ResponseDTO responseDTO, Person person){
-        itemRepository.save(convertToItem(responseDTO, person));
+    public void addItem(ItemDTO itemDTO, Person person){
+        itemRepository.save(convertToItem(itemDTO, person));
     }
 
-    public List<ResponseDTO> getItemsByPersonId(int id){
+    @Transactional(readOnly = true)
+    public List<ItemDTO> getItemsByPersonId(int id){
         return itemRepository.findAllByOwnerId(id).stream()
                 .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
 
-    private ResponseDTO convertToResponseDTO(Item item){
-        return new ResponseDTO(item.getTitle(), item.getPrice(), item.getImage(), item.getLink());
+    private ItemDTO convertToResponseDTO(Item item){
+        return new ItemDTO(item.getTitle(), item.getPrice(), item.getImage(), item.getLink());
     }
 
-    private Item convertToItem(ResponseDTO responseDTO, Person person){
-        return new Item(responseDTO.getTitle(),
-                responseDTO.getImage_url(),
-                responseDTO.getLink(),
-                responseDTO.getPrice(), person);
+    private Item convertToItem(ItemDTO itemDTO, Person person){
+        return new Item(itemDTO.getTitle(),
+                itemDTO.getImage_url(),
+                itemDTO.getLink(),
+                itemDTO.getPrice(), person);
     }
 }

@@ -1,6 +1,5 @@
 package ru.berdnikov.telegrambot.controller;
 
-import com.itextpdf.text.DocumentException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -16,20 +15,21 @@ import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import ru.berdnikov.telegrambot.dto.ItemDTO;
 import ru.berdnikov.telegrambot.dto.PersonDTO;
-import ru.berdnikov.telegrambot.dto.ResponseDTO;
 import ru.berdnikov.telegrambot.entity.Person;
-import ru.berdnikov.telegrambot.services.botServices.PeopleService;
-import ru.berdnikov.telegrambot.services.itemServices.ItemService;
-import ru.berdnikov.telegrambot.services.personServices.RegistrationService;
-import ru.berdnikov.telegrambot.services.interfaces.BotCommandService;
-import ru.berdnikov.telegrambot.services.interfaces.BotCommands;
-import ru.berdnikov.telegrambot.services.interfaces.ScraperService;
+import ru.berdnikov.telegrambot.services.personService.PersonService;
+import ru.berdnikov.telegrambot.services.botService.TelegramResponseService;
+import ru.berdnikov.telegrambot.services.itemService.ItemService;
+import ru.berdnikov.telegrambot.services.personService.PersonRegistrationService;
+import ru.berdnikov.telegrambot.util.botSetup.BotCommands;
 import ru.berdnikov.telegrambot.util.botSetup.BotConfig;
 import ru.berdnikov.telegrambot.util.button.Buttons;
+import ru.berdnikov.telegrambot.util.errors.AuthUsernameNotFoundException;
+import ru.berdnikov.telegrambot.util.errors.BotDocumentNotCreated;
+import ru.berdnikov.telegrambot.util.errors.TelegramBotConfigNotCreated;
 
 import java.io.*;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,10 +38,9 @@ public class TelegramBotController extends TelegramLongPollingBot implements Bot
 
     private final BotConfig botConfig;
     private final ItemService itemService;
-    private final ScraperService scraperService;
-    private final PeopleService peopleService;
-    private final BotCommandService botCommandService;
-    private final RegistrationService registrationService;
+    private final TelegramResponseService telegramResponseService;
+    private final PersonService personService;
+    private final PersonRegistrationService personRegistrationService;
     private final AuthenticationManager authenticationManager;
 
     private UsernamePasswordAuthenticationToken authenticationToken = null;
@@ -49,22 +48,20 @@ public class TelegramBotController extends TelegramLongPollingBot implements Bot
     @Autowired
     public TelegramBotController(BotConfig botConfig,
                                  ItemService itemService,
-                                 ScraperService scraperService,
-                                 BotCommandService botCommandService,
-                                 RegistrationService registrationService,
+                                 TelegramResponseService telegramResponseService,
+                                 PersonRegistrationService personRegistrationService,
                                  AuthenticationManager authenticationManager,
-                                 PeopleService peopleService) {
+                                 PersonService personService) {
         this.botConfig = botConfig;
         this.itemService = itemService;
-        this.scraperService = scraperService;
-        this.botCommandService = botCommandService;
-        this.registrationService = registrationService;
+        this.telegramResponseService = telegramResponseService;
+        this.personRegistrationService = personRegistrationService;
         this.authenticationManager = authenticationManager;
-        this.peopleService = peopleService;
+        this.personService = personService;
         try {
             this.execute(new SetMyCommands(LIST_OF_COMMANDS, new BotCommandScopeDefault(), null));
         } catch (TelegramApiException e){
-            e.printStackTrace();
+            throw new TelegramBotConfigNotCreated(e.getMessage());
         }
     }
 
@@ -80,82 +77,75 @@ public class TelegramBotController extends TelegramLongPollingBot implements Bot
 
     @Override
     public void onUpdateReceived(Update update) {
-        long chatId = 0;
-        String userName = null;
+        long chatId;
+        String userName;
         String receivedMessage;
 
-        if (update.hasMessage()) {
+        if (update.hasMessage() && update.getMessage().hasText()) {
             chatId = update.getMessage().getChatId();
             userName = update.getMessage().getFrom().getFirstName();
-
-            if (update.getMessage().hasText()) {
-                receivedMessage = update.getMessage().getText();
-                botAnswerUtils(receivedMessage, chatId, userName);
-            }
-
+            receivedMessage = update.getMessage().getText();
+            botAnswerUtils(receivedMessage, chatId, userName);
         }  else if (update.hasCallbackQuery()) {
             chatId = update.getCallbackQuery().getMessage().getChatId();
             userName = update.getCallbackQuery().getFrom().getFirstName();
             receivedMessage = update.getCallbackQuery().getData();
-
             botAnswerUtils(receivedMessage, chatId, userName);
         }
     }
 
-    //ИСПОЛЬЗУЙ LINKEDLIST!! для удаления и вывода
-    // Или LinkedHaspMap
-    // Переделай под многопоточку!
-    // Используй producer - consumer паттерн
-    // Count down latch!! Смотри semaphore
+
     private void botAnswerUtils(String receivedMessage, long chatId, String userName) {
         switch (receivedMessage) {
             case "/start" ->
                     startBot(chatId, userName);
-            case "/help" ->
-                    sendText(chatId, HELP_TEXT);
             case "/logout" ->
                     logout(chatId);
             case "/login" ->
-                    sendText(chatId,LOGIN);
+                    sendMessage(chatId,LOGIN);
             case "/signin" ->
-                    sendText(chatId,SIGNIN);
+                    sendMessage(chatId,SIGNIN);
             case "/items" ->
                     sendSavedItem(chatId);
             case "/newitem" ->
-                sendText(chatId, NEW_ITEM);
+                    sendMessage(chatId, NEW_ITEM);
             default ->
                     fetchRequest(receivedMessage, chatId);
         }
     }
 
     private void fetchRequest(String receivedMessage, long chatId) {
-        if (receivedMessage.startsWith("signin")) {
-            processSignInCommand(receivedMessage, chatId);
+        if (receivedMessage.startsWith("create")) {
+            processCreateUserCommand(receivedMessage, chatId);
         } else if (receivedMessage.startsWith("login")) {
             processLoginCommand(receivedMessage, chatId);
         } else if (receivedMessage.startsWith("add")){
             createNewItem(chatId,receivedMessage);
         }
         else {
-            try {
-                Authentication authentication = authenticationManager.authenticate(authenticationToken);
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-                List<ResponseDTO> responseDTOList = scraperService.fetchMoney(receivedMessage);
-                sendPdfDocument(chatId, botCommandService.sendPdf(responseDTOList));
-            } catch (IOException | DocumentException | UsernameNotFoundException e) {
-                handlePdfDocumentError(chatId, e);
+            if (authenticationToken != null) {
+                try {
+                    Authentication authentication = authenticationManager.authenticate(authenticationToken);
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    sendPdfDocument(chatId, telegramResponseService.searchAllByMoneyName(receivedMessage));
+                } catch (UsernameNotFoundException e) {
+                    sendMessage(chatId, "Your not login");
+                    throw new AuthUsernameNotFoundException(e.getMessage());
+                }
+            } else {
+                sendMessage(chatId, "Your not login");
             }
         }
     }
 
-    private void processSignInCommand(String receivedMessage, long chatId) {
-        Pattern pattern = Pattern.compile("signin:(\\S+) password:(\\S+)");
+    private void processCreateUserCommand(String receivedMessage, long chatId) {
+        Pattern pattern = Pattern.compile("create:(\\S+) password:(\\S+)");
         Matcher matcher = pattern.matcher(receivedMessage);
         if (matcher.find()) {
             String login = matcher.group(1);
             String password = matcher.group(2);
             PersonDTO personDTO = new PersonDTO(login, password);
-            sendText(chatId, registrationService.register(personDTO));
+            sendMessage(chatId, personRegistrationService.register(personDTO));
             authenticateAndSendWelcome(chatId, personDTO);
         }
     }
@@ -169,7 +159,7 @@ public class TelegramBotController extends TelegramLongPollingBot implements Bot
             PersonDTO personDTO = new PersonDTO(login, password);
             authenticateAndSendWelcome(chatId, personDTO);
         } else {
-            sendText(chatId, "Login and password not found in the input string.");
+            sendMessage(chatId, "Login and password not found in the input string.");
         }
     }
 
@@ -181,25 +171,22 @@ public class TelegramBotController extends TelegramLongPollingBot implements Bot
         try {
             Authentication authentication = authenticationManager.authenticate(authenticationToken);
             SecurityContextHolder.getContext().setAuthentication(authentication);
-
-            sendText(chatId, "Welcome back " + authentication.getName());
+            sendMessage(chatId, "Welcome back " + authentication.getName());
         } catch (UsernameNotFoundException e) {
-            sendText(chatId, "User not found!");
+            sendMessage(chatId, "User not found!");
+            throw new AuthUsernameNotFoundException(e.getMessage());
         }
     }
 
     private void logout(long chatId) {
         if (authenticationToken != null) {
             SecurityContextHolder.clearContext();
-            sendText(chatId, "Your log out successfully!");
+            sendMessage(chatId, "Your log out successfully!");
         } else {
-            sendText(chatId, "Your not login!");
+            sendMessage(chatId, "Your not login!");
         }
     }
 
-    private void handlePdfDocumentError(long chatId, Exception e) {
-        sendText(chatId, "Error processing PDF document: " + e.getMessage());
-    }
 
     private void startBot(long chatId, String userName) {
         SendMessage message = new SendMessage();
@@ -207,25 +194,23 @@ public class TelegramBotController extends TelegramLongPollingBot implements Bot
         message.setText("Hi, " + userName + "! I'm a Telegram bot to track coin prices. " +
                 "Please register or log in with your account!");
         message.setReplyMarkup(Buttons.inlineMarkup());
-//        message.setReplyMarkup(Buttons.keyboardMarkup());
         try {
             execute(message);
             System.out.println("Reply sent");
         } catch (TelegramApiException e){
-            System.out.println(e.getMessage());
+            throw new TelegramBotConfigNotCreated(e.getMessage());
         }
     }
 
-    private void sendText(long chatId, String textToSend){
+    private void sendMessage(long chatId, String textToSend){
         SendMessage message = new SendMessage();
         message.setChatId(chatId);
         message.setText(textToSend);
-
         try {
             execute(message);
             System.out.println("Reply sent");
         } catch (TelegramApiException e){
-            System.out.println(e.getMessage());
+            throw new TelegramBotConfigNotCreated(e.getMessage());
         }
     }
 
@@ -238,34 +223,31 @@ public class TelegramBotController extends TelegramLongPollingBot implements Bot
             InputFile inputFile = new InputFile(fileInputStream, save.getName());
             sendDocument.setDocument(inputFile);
             execute(sendDocument);
-        } catch (FileNotFoundException | TelegramApiException e) {
-            e.printStackTrace();
+        } catch (TelegramApiException e) {
+            throw new TelegramBotConfigNotCreated(e.getMessage());
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new BotDocumentNotCreated(e.getMessage());
         }
     }
+
 
     private void createNewItem(long chatId, String message) {
         if (authenticationToken != null) {
             Authentication authentication = authenticationManager.authenticate(authenticationToken);
             SecurityContextHolder.getContext().setAuthentication(authentication);
-            Person person = peopleService.getByUsername(authentication.getName());
-            ResponseDTO responseDTO = scraperService.saveByLink(message);
-            itemService.addItem(responseDTO,person);
-            sendText(chatId, "Added");
+            Person person = personService.getByUsername(authentication.getName());
+            ItemDTO itemDTO = telegramResponseService.saveByLink(message);
+            itemService.addItem(itemDTO,person);
+            sendMessage(chatId, "Added");
         } else {
-            sendText(chatId, "Your not login");
+            sendMessage(chatId, "Your not login");
         }
     }
 
     private void sendSavedItem(long chatId) {
-        try {
-            Authentication authentication = authenticationManager.authenticate(authenticationToken);
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            Person person = peopleService.getByUsername(authentication.getName());
-            sendPdfDocument(chatId, botCommandService.sendPdf(itemService.getItemsByPersonId(person.getId())));
-        } catch (IOException | DocumentException | UsernameNotFoundException e) {
-            handlePdfDocumentError(chatId, e);
-        }
+        Authentication authentication = authenticationManager.authenticate(authenticationToken);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        Person person = personService.getByUsername(authentication.getName());
+        sendPdfDocument(chatId, telegramResponseService.searchAllForUser(person.getId()));
     }
 }

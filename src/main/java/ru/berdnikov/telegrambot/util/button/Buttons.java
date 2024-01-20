@@ -12,7 +12,6 @@ public class Buttons {
     private static final ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
 
     private static final InlineKeyboardButton START_BUTTON = new InlineKeyboardButton("Start");
-    private static final InlineKeyboardButton HELP_BUTTON = new InlineKeyboardButton("Help");
     private static final InlineKeyboardButton LOGOUT_BUTTON = new InlineKeyboardButton("Logout");
     private static final InlineKeyboardButton LOGIN_BUTTON = new InlineKeyboardButton("Login");
     private static final InlineKeyboardButton SIGNIN_BUTTON = new InlineKeyboardButton("Signin");
@@ -21,13 +20,12 @@ public class Buttons {
 
     public static InlineKeyboardMarkup inlineMarkup() {
         START_BUTTON.setCallbackData("/start");
-        HELP_BUTTON.setCallbackData("/help");
         LOGOUT_BUTTON.setCallbackData("/logout");
         LOGIN_BUTTON.setCallbackData("/login");
         SIGNIN_BUTTON.setCallbackData("/signin");
         ITEMS_BUTTON.setCallbackData("/items");
 
-        List<InlineKeyboardButton> rowInline = List.of(START_BUTTON, HELP_BUTTON, LOGOUT_BUTTON);
+        List<InlineKeyboardButton> rowInline = List.of(START_BUTTON, LOGOUT_BUTTON);
         List<List<InlineKeyboardButton>> rowsInLine = List.of(rowInline);
 
         InlineKeyboardMarkup markupInline = new InlineKeyboardMarkup();
