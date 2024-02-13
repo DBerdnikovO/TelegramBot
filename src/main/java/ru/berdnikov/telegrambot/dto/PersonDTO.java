@@ -3,7 +3,6 @@ package ru.berdnikov.telegrambot.dto;
 public class PersonDTO {
 
     private String username;
-
     private String password;
 
     public PersonDTO() {

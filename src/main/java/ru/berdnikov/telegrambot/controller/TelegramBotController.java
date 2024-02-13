@@ -125,8 +125,6 @@ public class TelegramBotController extends TelegramLongPollingBot implements Bot
         else {
             if (authenticationToken != null) {
                 try {
-                    Authentication authentication = authenticationManager.authenticate(authenticationToken);
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
                     sendPdfDocument(chatId, telegramResponseService.searchAllByMoneyName(receivedMessage));
                 } catch (UsernameNotFoundException e) {
                     sendMessage(chatId, "Your not login");
@@ -163,15 +161,19 @@ public class TelegramBotController extends TelegramLongPollingBot implements Bot
         }
     }
 
+    private String getAuthUsername(){
+        Authentication authentication = authenticationManager.authenticate(authenticationToken);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        return authentication.getName();
+    }
+
     private void authenticateAndSendWelcome(long chatId, PersonDTO personDTO) {
         authenticationToken = new UsernamePasswordAuthenticationToken(
                 personDTO.getUsername(),
                 personDTO.getPassword()
         );
         try {
-            Authentication authentication = authenticationManager.authenticate(authenticationToken);
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            sendMessage(chatId, "Welcome back " + authentication.getName());
+            sendMessage(chatId, "Welcome back " + getAuthUsername());
         } catch (UsernameNotFoundException e) {
             sendMessage(chatId, "User not found!");
             throw new AuthUsernameNotFoundException(e.getMessage());
@@ -233,9 +235,7 @@ public class TelegramBotController extends TelegramLongPollingBot implements Bot
 
     private void createNewItem(long chatId, String message) {
         if (authenticationToken != null) {
-            Authentication authentication = authenticationManager.authenticate(authenticationToken);
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            Person person = personService.getByUsername(authentication.getName());
+            Person person = personService.getByUsername(getAuthUsername());
             ItemDTO itemDTO = telegramResponseService.saveByLink(message);
             itemService.addItem(itemDTO,person);
             sendMessage(chatId, "Added");
@@ -245,9 +245,7 @@ public class TelegramBotController extends TelegramLongPollingBot implements Bot
     }
 
     private void sendSavedItem(long chatId) {
-        Authentication authentication = authenticationManager.authenticate(authenticationToken);
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        Person person = personService.getByUsername(authentication.getName());
+        Person person = personService.getByUsername(getAuthUsername());
         sendPdfDocument(chatId, telegramResponseService.searchAllForUser(person.getId()));
     }
 }
