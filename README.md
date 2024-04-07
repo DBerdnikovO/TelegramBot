@@ -25,4 +25,3 @@
 - **Slf4j**: Предоставляет API для обработки логирования в приложении.
 - 
 <img width="572" alt="Снимок экрана 2024-04-07 в 18 24 16" src="https://github.com/DBerdnikovO/TelegramBot/assets/95565575/81a20992-1ee6-475f-a9a5-d752bda790b5">
-![Uploading Снимок экрана 2024-04-07 в 18.24.16.png…]()
